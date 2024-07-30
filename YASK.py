@@ -52,18 +52,19 @@ if version == 1:
     #Index          0  1   2  3  4  5  6  7  8  9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  #list index
     __equiv = [] #List of pairs of keys that are wired to different pins but need to be treated as equivalent. Must be indexes, not pin numbers.
 elif version == 2:
-    __inputs =     [0, 1,  2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 22, 26, 27, 28, 15, 14, 17, 13, 16] #GPIO address
-    #Corresponds to:S- T-  K- P- W- H- R- A  O  *  #    E   U  -F  -R  -P  -B  -L  -G  -T  -S  -D  -Z, Esc, #  N/A #key name
-    #Index          0  1   2  3  4  5  6  7  8  9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  #list index
-    __equiv = [(10,24), (9, 25), (23,0)] #List of pairs of keys that are wired to different pins but need to be treated as equivalent. Must be indexes, not pin numbers.
+    __inputs =     [0,  1,  2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 22, 26, 27, 28, 15, 14, 17, 13, 16] #GPIO address
+    #Corresponds to:S2- T-  K- P- W- H- R- A  O  *  #    E   U  -F  -R  -P  -B  -L  -G  -T  -S  -D  -Z, S1, #   -*  #key name
+    #Index          0   1   2  3  4  5  6  7  8  9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  #list index
+    __equiv = []
+    #__equiv = [(10,24), (9, 25), (23,0)] #List of pairs of keys that are wired to different pins but need to be treated as equivalent. Must be indexes, not pin numbers.
 
 #Here is the index (in __inputs) of the GPIO used for each of the bits of 6 bytes of one protocole frame
-__protocole = [[ 23, 10, 10, 10, 10, 10, 10],
-               [  0,  0,  1,  2,  3,  4,  5],
-               [  6,  7,  8,  9,  9, 23, 23],
-               [ 23,  9,  9, 11, 12, 13, 14],
+__protocole = [[ -1, 10, 10, 10, 10, 10, 24],
+               [ 23,  0,  1,  2,  3,  4,  5],
+               [  6,  7,  8,  9,  9, -1, -1],
+               [ -1, 25, 25, 11, 12, 13, 14],
                [ 15, 16, 17, 18, 19, 20, 21],
-               [ 10, 10, 10, 10, 10, 10, 22]]
+               [ 24, 24, 24, -1, -1, -1, 22]]
 
 #Bitmaps
 #                ~ZDSTGLBPRFUE#*OARHWPKTS
@@ -80,7 +81,7 @@ __autoRepeatRules = [ (0b00000000000000001010101, 0b11110000001111111111111),  #
 __autoRepeatDelay = 700 #before 1st repeat
 __autoRepeatRepeat= 300 #between subsequent repeats
 
-__LED = Pin(25, Pin.OUT)
+#__LED = Pin(25, Pin.OUT)
 
 def equiv(bitmap, id1, id2):
     "set to 'pressed' the signal of both key ids if either one is pressed"
@@ -104,7 +105,9 @@ class YASK:
             for c in range(6):
                 self.buffer[c] = 0
                 for i, j in enumerate(__protocole[c]):
-                    self.buffer[c] += ((self.inputs_max>>__protocole[c][i])&0x01)<<(6-i)
+                    assert j == __protocole[c][i]
+                    if j != -1:
+                        self.buffer[c] += ((self.inputs_max>>j)&0x01)<<(6-i)
             self.buffer[0] += 0x80
             sys.stdout.buffer.write(self.buffer)
 
@@ -147,6 +150,7 @@ class YASK:
             right_max = right | right_max
 
             if inputs_old != inputs:
+                #print(f"input change: {inputs}")
                 #A change in the keypresses
                 t0 = time.ticks_ms()
                 repeatingStarted = False
@@ -156,13 +160,13 @@ class YASK:
                         if already_written:
                             already_written = False
                         else:
-                            __LED(1)
+                            #__LED(1)
                             #print(bin(self.inputs_max))
                             self.Gemini_write()
                         self.inputs_max = 0
                         left_max, right_max = (0, 0)
                     elif (( left == 0 and left_max > 0 and already_written != "R") or (right == 0 and right_max > 0 and already_written != "L")) and FirstUpChordSend: #only released the left or right hand
-                        __LED(1)
+                        #__LED(1)
                         self.Gemini_write()
                         self.inputs_max = inputs
                         if left == 0:
@@ -175,7 +179,7 @@ class YASK:
                     for keys, mask in __autoRepeatRules:
                         if (inputs & mask) == (keys & mask): #satisfy at least one rule
                             autoRepeatEngaged = True
-                            __LED(1);time.sleep_ms(100)
+                            #__LED(1);time.sleep_ms(100)
             elif autoRepeatEngaged:
                 if repeatingStarted == False and time.ticks_ms()-t0 > __autoRepeatDelay:
                     self.Gemini_write()
@@ -185,7 +189,8 @@ class YASK:
                     self.Gemini_write()
                     t0 = time.ticks_ms()
             time.sleep_ms(10)#anti-rebound. Specified to 5ms for common key switches.
-            __LED(0)
+            #__LED(0)
 
 c=YASK()
 c.loop()
+
